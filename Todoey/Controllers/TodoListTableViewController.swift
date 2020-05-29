@@ -7,19 +7,17 @@
 //
 
 import UIKit
-
+import CoreData
 class TodoListTableViewController: UITableViewController {
 
     var itemArray = [Item]()
     var defaults = UserDefaults.standard
+    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     override func viewDidLoad() {
         super.viewDidLoad()
-        let newItem = Item()
-        newItem.title = "Find Mike"
-        itemArray.append(newItem)
-        if let item = defaults.array(forKey: "TodoItemArray") as? [Item]{
-            itemArray = item
-        }
+        print(dataFilePath)
+        loadItems()
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -38,9 +36,11 @@ class TodoListTableViewController: UITableViewController {
     //MARK: TableView Delegate Method
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
 
-        
+        //Code For Deleting Item
+//        context.delete(itemArray[indexPath.row])
+//        itemArray.remove(at: indexPath.row)
         itemArray[indexPath.row].done = !itemArray[indexPath.row].done
-        tableView.reloadData()
+        self.saveItems()
         tableView.deselectRow(at: indexPath, animated: true)
     }
     
@@ -57,12 +57,13 @@ class TodoListTableViewController: UITableViewController {
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
             print("SUccess")
             print(textField.text!)
-            let newItem = Item()
-            newItem.title = textField.text!
             
+            let newItem = Item(context: self.context)
+            newItem.title = textField.text!
+            newItem.done = false
             self.itemArray.append(newItem)
-            self.defaults.set(self.itemArray, forKey: "TodoItemArray")
-            self.tableView.reloadData()
+            
+            self.saveItems()
         }
         alert.addTextField { (alertTextField) in
             alertTextField.placeholder = "Create New Item"
@@ -73,5 +74,49 @@ class TodoListTableViewController: UITableViewController {
         present(alert, animated: true, completion: nil)
     }
     
+    func saveItems(){
+        do{
+            try context.save()
+        }catch{
+            print("errr saving context \(error)")
+        }
+        self.tableView.reloadData()
+    }
+     
+    func loadItems(with request: NSFetchRequest<Item> = Item.fetchRequest()){
+        do{
+            itemArray = try context.fetch(request)
+        }catch{
+            print("Error Fetching Data \(error)")
+        }
+        tableView.reloadData()
+        
+    }
+}
+
+extension TodoListTableViewController: UISearchBarDelegate {
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        let request : NSFetchRequest<Item> = Item.fetchRequest()
+        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+        request.predicate = predicate
+        
+        let sortDescriptor = NSSortDescriptor(key: "title", ascending: true)
+        request.sortDescriptors = [sortDescriptor]
+        loadItems(with: request)
+    }
+    
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        print("In FUnc")
+        print(searchBar.text!)
+        if searchBar.text?.count == 0 {
+            loadItems()
+            DispatchQueue.main.async {
+                searchBar.resignFirstResponder()
+            }
+            
+        }
+        
+    }
 
 }
